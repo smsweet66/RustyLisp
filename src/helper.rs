@@ -12,10 +12,16 @@ pub(crate) fn string_sep(string: String) -> Vec<String>
     while i < string.len()
     {
         while string.chars().nth(i).unwrap().is_ascii_whitespace()
-        { i = i + 1 }
+        {
+            i = i + 1;
+            if i == string.len()
+            { break }
+        }
 
         let mut start = i;
-        if string.chars().nth(i).unwrap() == '\"'
+        if i == string.len()
+        { break }
+        else if string.chars().nth(i).unwrap() == '\"'
         {
             i = i + 1;
             while string.chars().nth(i).unwrap() != '\"'
@@ -64,56 +70,7 @@ pub(crate) fn string_sep(string: String) -> Vec<String>
     return substrings;
 }
 
-// given a string, will extract the float value
-// works if string is a float or the name of a float variable
-fn get_float_value(value: String, variables: &HashMap<String, Variable>) -> f64
-{
-    let container = value.parse::<f64>();
-    match container
-    {
-        Ok(v) => return v,
-        _ => {
-            let temp = variables.get(value.as_str());
-            match temp
-            {
-                Some(v) => {
-                    match v
-                    {
-                        Variable::Number(f) => return *f,
-                        _ => {
-                            println!("{} is not a float", value);
-                            exit(2);
-                        }
-                    }
-                }
-                None => {
-                    println!("{} is not a valid variable!", value);
-                    exit(3);
-                }
-            }
-        }
-    }
-}
-
-fn is_type(type_string: &str, var: Variable) -> &str
-{
-    return match type_string
-    {
-        "num" => {
-            match var
-            {
-                Variable::Number(_) => "t",
-                _ => "nil"
-            }
-        },
-        _ => {
-            println!("{} is not a valid type!", type_string);
-            exit(11);
-        }
-    }
-}
-
-fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
+fn operation(op: String, local_names: &Vec<String>, locals: &mut Vec<Variable>, globals: &mut HashMap<String, Variable>) -> String
 {
     let substrings = string_sep(op);
     match &substrings.get(0).unwrap() as &str
@@ -123,34 +80,48 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
             {
                 println!("Wrong number of arguments!");
                 exit(3);
-            }
-            else
-            {
-                let output = interpret_line(substrings.get(1).unwrap().to_string(), variables);
-                println!("{}", Variable::from_string(output, variables).to_string());
+            } else {
+                let output = interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals);
+                println!("{}", Variable::from_string(output, local_names, locals, globals).to_string());
             }
             return String::new();
         }
-        "+"|"-"|"*"|"/"|"%" => {
+        "+" | "-" | "*" | "/" | "%" => {
             if substrings.len() != 3
             {
                 println!("Wrong number of arguments!");
                 exit(3);
-            }
-            else
-            {
-                let a = get_float_value(interpret_line(substrings.get(1).unwrap().to_string(), variables), variables);
-                let b = get_float_value(interpret_line(substrings.get(2).unwrap().to_string(), variables), variables);
-                match substrings.get(0).unwrap().as_str()
+            } else {
+                let a = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
+                let b = Variable::from_string(interpret_line(substrings.get(2).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
+                match a
                 {
-                    "+" => return (a + b).to_string(),
-                    "-" => return (a - b).to_string(),
-                    "*" => return (a * b).to_string(),
-                    "/" => return (a / b).to_string(),
-                    "%" => return (a % b).to_string(),
+                    Variable::Number(f1) => {
+                        match b
+                        {
+                            Variable::Number(f2) => {
+                                match substrings.get(0).unwrap().as_str()
+                                {
+                                    "+" => return (f1 + f2).to_string(),
+                                    "-" => return (f1 - f2).to_string(),
+                                    "*" => return (f1 * f2).to_string(),
+                                    "/" => return (f1 / f2).to_string(),
+                                    "%" => return (f1 % f2).to_string(),
+                                    _ => {
+                                        println!("Invalid operation!");
+                                        exit(1);
+                                    }
+                                }
+                            },
+                            _ => {
+                                println!("Cannot perform arithmetic operations on non number value!");
+                                exit(15);
+                            }
+                        }
+                    },
                     _ => {
-                        println!("Invalid operation!");
-                        exit(1);
+                        println!("Cannot perform arithmetic operations on non number value!");
+                        exit(15);
                     }
                 }
             }
@@ -160,13 +131,11 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
             {
                 println!("Wrong number of arguments!");
                 exit(3);
-            }
-            else
-            {
-                let a = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), variables), variables);
-                let b = Variable::from_string(interpret_line(substrings.get(2).unwrap().to_string(), variables), variables);
+            } else {
+                let a = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
+                let b = Variable::from_string(interpret_line(substrings.get(2).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
                 return if a.eq(&b)
-                { "t".to_string() } else { "nil".to_string() }
+                { "t".to_string() } else { "[]".to_string() }
             }
         },
         "<" => {
@@ -176,10 +145,28 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
                 exit(3);
             }
 
-            let a = get_float_value(interpret_line(substrings.get(1).unwrap().to_string(), variables), variables);
-            let b = get_float_value(interpret_line(substrings.get(2).unwrap().to_string(), variables), variables);
-            return if a - b < -0.000000001
-            { String::from('t') } else { String::from("nil") }
+            let a = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
+            let b = Variable::from_string(interpret_line(substrings.get(2).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
+            match a
+            {
+                Variable::Number(f1) => {
+                    match b
+                    {
+                        Variable::Number(f2) => {
+                            return if f1 - f2 < -0.000000001
+                            { String::from('t') } else { String::from("[]") }
+                        },
+                        _ => {
+                            println!("Cannot perform arithmetic operations on non number value!");
+                            exit(15);
+                        }
+                    }
+                },
+                _ => {
+                    println!("Cannot perform arithmetic operations on non number value!");
+                    exit(15);
+                }
+            }
         },
         ">" => {
             if substrings.len() != 3
@@ -188,10 +175,28 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
                 exit(3);
             }
 
-            let a = get_float_value(interpret_line(substrings.get(1).unwrap().to_string(), variables), variables);
-            let b = get_float_value(interpret_line(substrings.get(2).unwrap().to_string(), variables), variables);
-            return if a - b > 0.000000001
-            { String::from('t') } else { String::from("nil") }
+            let a = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
+            let b = Variable::from_string(interpret_line(substrings.get(2).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
+            match a
+            {
+                Variable::Number(f1) => {
+                    match b
+                    {
+                        Variable::Number(f2) => {
+                            return if f1 - f2 > 0.000000001
+                            { String::from('t') } else { String::from("[]") }
+                        },
+                        _ => {
+                            println!("Cannot perform arithmetic operations on non number value!");
+                            exit(15);
+                        }
+                    }
+                },
+                _ => {
+                    println!("Cannot perform arithmetic operations on non number value!");
+                    exit(15);
+                }
+            }
         },
         "set" => {
             if substrings.len() != 3
@@ -205,17 +210,15 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
             {
                 println!("Variable name must start with a letter!");
                 exit(4);
-            }
-            else if name == "nil" || name == "t"
+            } else if name == "nil" || name == "t"
             {
                 println!("A reserved word cannot be the name of a variable!");
                 exit(5);
-            }
-            else
-            {
-                let value = interpret_line(substrings.get(2).unwrap().clone(), variables);
-                let var = Variable::from_string(value, variables);
-                variables.insert(name, var);
+            } else {
+                let value = interpret_line(substrings.get(2).unwrap().clone(), local_names, locals, globals);
+                let var = Variable::from_string(value, local_names, locals, globals);
+                if local_names.contains(&name)
+                { locals.insert(local_names.iter().position(|s| s == &name).unwrap(), var) } else { globals.insert(name, var); }
             }
 
             return "".to_string();
@@ -225,20 +228,20 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
             {
                 println!("Wrong number of arguments!");
                 exit(3);
-            }
-            else
-            {
-                let condition = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), variables), variables);
+            } else {
+                let condition = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
                 match condition
                 {
-                    Variable::Bool(b) => {
-                        return if b
-                        { interpret_line(substrings.get(2).unwrap().to_string(), variables) }
-                        else
-                        { interpret_line(substrings.get(3).unwrap().to_string(), variables) }
-                    },
+                    Variable::True => return interpret_line(substrings.get(2).unwrap().to_string(), local_names, locals, globals),
+                    Variable::List(l) => {
+                        if l.len() == 0
+                        { return interpret_line(substrings.get(3).unwrap().to_string(), local_names, locals, globals) } else {
+                            println!("Empty list expected, got populated list!");
+                            exit(9);
+                        }
+                    }
                     _ => {
-                        println!("Invalid type returned!  Bool expected");
+                        println!("Invalid type returned!  T or [] expected");
                         exit(9);
                     }
                 }
@@ -253,16 +256,21 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
 
             loop
             {
-                let condition = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), variables), variables);
+                let condition = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
                 match condition
                 {
-                    Variable::Bool(b) => {
-                        if b
-                        { interpret_line(substrings.get(2).unwrap().to_string(), variables); }
-                        else
-                        { break; }
+                    Variable::True => { interpret_line(substrings.get(2).unwrap().to_string(), local_names, locals, globals); },
+                    Variable::List(l) => {
+                        if l.len() == 0
+                        { break } else {
+                            println!("Empty list expected, got populated list!");
+                            exit(9);
+                        }
                     }
-                    _ => break
+                    _ => {
+                        println!("Invalid type returned!  T or [] expected");
+                        exit(9);
+                    }
                 }
             }
 
@@ -273,11 +281,9 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
             {
                 println!("begin must have at least 2 arguments!");
                 exit(3);
-            }
-            else
-            {
+            } else {
                 for i in 1..substrings.len()
-                { interpret_line(substrings.get(i).unwrap().to_string(), variables); }
+                { interpret_line(substrings.get(i).unwrap().to_string(), local_names, locals, globals); }
 
                 return "".to_string();
             }
@@ -287,11 +293,9 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
             {
                 println!("Wrong number of arguments!");
                 exit(3);
-            }
-            else
-            {
-                let car = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), variables), variables);
-                let cdr = Variable::from_string(interpret_line(substrings.get(2).unwrap().to_string(), variables), variables);
+            } else {
+                let car = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
+                let cdr = Variable::from_string(interpret_line(substrings.get(2).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
                 let mut cons: Vec<Variable> = Vec::new();
                 match cdr
                 {
@@ -316,10 +320,8 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
             {
                 println!("Wrong number of arguments!");
                 exit(3);
-            }
-            else
-            {
-                let cons = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), variables), variables);
+            } else {
+                let cons = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
                 match cons
                 {
                     Variable::List(l) => return l.get(0).unwrap().to_string(),
@@ -335,17 +337,13 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
             {
                 println!("Wrong number of arguments!");
                 exit(3);
-            }
-            else
-            {
-                let cons = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), variables), variables);
+            } else {
+                let cons = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
                 match cons
                 {
                     Variable::List(l) => {
                         return if l.len() == 1
-                        { Variable::Bool(false).to_string() }
-                        else
-                        {
+                        { "[]".to_string() } else {
                             let mut cdr: Vec<Variable> = Vec::with_capacity(l.len() - 1);
                             for i in 1..l.len()
                             { cdr.push(l.get(i).unwrap().clone()); }
@@ -365,11 +363,13 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
             {
                 println!("Wrong number of arguments!");
                 exit(3);
-            }
-            else
-            {
-                let var = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), variables), variables);
-                return is_type("num", var).to_string();
+            } else {
+                let var = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
+                return match var
+                {
+                    Variable::Number(_) => "t".to_string(),
+                    _ => "[]".to_string()
+                }
             }
         },
         "symbol?" => {
@@ -377,14 +377,12 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
             {
                 println!("Wrong number of arguments!");
                 exit(3);
-            }
-            else
-            {
-                let container = variables.get(substrings.get(1).unwrap());
+            } else {
+                let container = globals.get(substrings.get(1).unwrap());
                 return match container
                 {
                     Some(_) => "t".to_string(),
-                    None => "nil".to_string()
+                    None => "[]".to_string()
                 }
             }
         },
@@ -393,14 +391,12 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
             {
                 println!("Wrong number of arguments!");
                 exit(3);
-            }
-            else
-            {
-                let var = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), variables), variables);
+            } else {
+                let var = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
                 return match var
                 {
                     Variable::List(_) => "t".to_string(),
-                    _ => "nil".to_string()
+                    _ => "[]".to_string()
                 }
             }
         },
@@ -409,38 +405,28 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
             {
                 println!("Wrong number of arguments!");
                 exit(3);
-            }
-            else
-            {
-                let var = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), variables), variables);
+            } else {
+                let var = Variable::from_string(interpret_line(substrings.get(1).unwrap().to_string(), local_names, locals, globals), local_names, locals, globals);
                 return match var
                 {
-                    Variable::Bool(b) => {
-                        if !b
-                        { "t".to_string() }
-                        else
-                        { "nil".to_string() }
-                    },
                     Variable::List(l) => {
                         if l.len() == 0
-                        { "t".to_string() }
-                        else
-                        { "nil".to_string() }
+                        { "t".to_string() } else { "[]".to_string() }
                     },
-                    _ => "nil".to_string()
+                    _ => "[]".to_string()
                 }
             }
         },
         _ => {
-            let var = variables.get(substrings.get(0).unwrap()).unwrap().clone();
+            let var = globals.get(substrings.get(0).unwrap()).unwrap().clone();
             match var
             {
                 Variable::Func(f) => {
-                    let mut arguments: Vec<Variable> = Vec::with_capacity(substrings.len()-1);
+                    let mut arguments: Vec<Variable> = Vec::with_capacity(substrings.len() - 1);
                     for i in 1..substrings.len()
-                    { arguments.push(Variable::from_string(interpret_line(substrings.get(i).unwrap().clone(), variables), variables)); }
+                    { arguments.push(Variable::from_string(interpret_line(substrings.get(i).unwrap().clone(), local_names, locals, globals), local_names, locals, globals)); }
 
-                    f.run(arguments, variables);
+                    f.run(&mut arguments, globals);
                     return "".to_string();
                 },
                 _ => {
@@ -452,10 +438,10 @@ fn operation(op: String, variables: &mut HashMap<String, Variable>) -> String
     }
 }
 
-pub fn interpret_line(line: String, variables: &mut HashMap<String, Variable>) -> String
+pub fn interpret_line(line: String, local_names: &Vec<String>, locals: &mut Vec<Variable>, globals: &mut HashMap<String, Variable>) -> String
 {
     return if line.chars().nth(0).unwrap() == '('
-    { operation(line.substring(1, line.len() - 1).to_string(), variables) }
+    { operation(line.substring(1, line.len() - 1).to_string(), local_names, locals, globals) }
     else
     { line }
 }

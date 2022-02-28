@@ -19,20 +19,15 @@ impl Func
     pub fn clone(&self) -> Self
     { Self {parameter_names: self.parameter_names.clone(), body: self.body.clone()} }
 
-    pub fn run(&self, parameters: Vec<Variable>, globals: &mut HashMap<String, Variable>)
+    pub fn run(&self, parameters: &mut Vec<Variable>, globals: &mut HashMap<String, Variable>)
     {
         if parameters.len() != self.parameter_names.len()
         {
-            println!("Wrong number of arguments.  {} expected, recieved {}.", self.parameter_names.len(), parameters.len());
+            println!("Wrong number of arguments.  {} expected, received {}.", self.parameter_names.len(), parameters.len());
             exit(13);
         }
 
-        for i in 0..parameters.len()
-        {
-            println!("{} = {}", self.parameter_names.get(i).unwrap(), parameters.get(i).unwrap().to_string());
-        }
-
-        println!("(\n{}\n)", self.body);
+        interpret_line(self.body.clone(), &self.parameter_names, parameters, globals);
     }
 }
 
@@ -41,7 +36,7 @@ pub enum Variable
     Number(f64),
     String(String),
     List(Vec<Variable>),
-    Bool(bool),
+    True,
     Func(Func)
 }
 
@@ -60,7 +55,7 @@ impl Variable
 
                 Variable::List(list)
             },
-            Variable::Bool(b) => Variable::Bool(b.clone()),
+            Variable::True => Variable::True,
             Variable::Func(f) => Variable::Func(f.clone())
         }
     }
@@ -103,10 +98,10 @@ impl Variable
                     _ => false
                 }
             },
-            Variable::Bool(b1) => {
+            Variable::True => {
                 match other
                 {
-                    Variable::Bool(b2) => b1 == b2,
+                    Variable::True => true,
                     _ => false
                 }
             }
@@ -114,7 +109,7 @@ impl Variable
         }
     }
 
-    pub fn from_string(input: String, variables: &HashMap<String, Variable>) -> Self
+    pub fn from_string(input: String, local_names: &Vec<String>, locals: &Vec<Variable>, globals: &HashMap<String, Variable>) -> Self
     {
         return if input.chars().nth(0).unwrap() == '\"'
         { Variable::String(input.clone()) }
@@ -123,14 +118,12 @@ impl Variable
             let substrings = string_sep(input.substring(1, input.len() - 1).to_string());
             let mut vec: Vec<Variable> = Vec::with_capacity(substrings.len());
             for s in substrings
-            { vec.push(Variable::from_string(s, variables)) }
+            { vec.push(Variable::from_string(s, local_names, locals, globals)) }
 
             Variable::List(vec)
         }
         else if input == "t"
-        { Variable::Bool(true) }
-        else if input == "nil"
-        { Variable::Bool(false) }
+        { Variable::True }
         else
         {
             let value = input.parse::<f64>();
@@ -138,11 +131,16 @@ impl Variable
             {
                 Ok(v) => Variable::Number(v.clone()),
                 _ => {
-                    let container = variables.get(input.as_str());
-                    match container
+                    if local_names.contains(&input)
+                    { locals.get(local_names.iter().position(|s| s == &input).unwrap()).unwrap().clone() }
+                    else
                     {
-                        Some(v) => v.clone(),
-                        None => Variable::Bool(false)
+                        let container = globals.get(input.as_str());
+                        match container
+                        {
+                            Some(v) => v.clone(),
+                            None => Variable::List(Vec::new())
+                        }
                     }
                 }
             }
@@ -163,10 +161,7 @@ impl Variable
                 output = output + "]";
                 output
             },
-            Variable::Bool(b) => {
-                if *b
-                { "t".to_string() } else { "nil".to_string() }
-            },
+            Variable::True => "t".to_string(),
             _ => "".to_string()
         }
     }
@@ -176,13 +171,13 @@ fn main()
 {
     let args: Vec<String> = std::env::args().collect();
     let input = std::fs::read_to_string(&args[1]).expect("Could not read file!")
-        .replace("()", "nil").to_lowercase();
+        .replace("()", "[]").to_lowercase();
     let split = string_sep(input);
 
-    let mut variable_map: HashMap<String, Variable> = HashMap::new();
-    for str in split
+    let mut globals: HashMap<String, Variable> = HashMap::new();
+    for line in split
     {
-        let substrings = string_sep(str.substring(1, str.len()-1).to_string());
+        let substrings = string_sep(line.substring(1, line.len()-1).to_string());
         if substrings.get(0).unwrap() == "define"
         {
             if substrings.len() != 4
@@ -195,10 +190,10 @@ fn main()
                 let temp = substrings.get(2).unwrap();
                 let arguments = string_sep(temp.substring(1, temp.len()-1).to_string());
                 let function = Func::new(arguments, substrings.get(3).unwrap().clone());
-                variable_map.insert(substrings.get(1).unwrap().clone(), Variable::Func(function));
+                globals.insert(substrings.get(1).unwrap().clone(), Variable::Func(function));
             }
         }
         else
-        { interpret_line(str, &mut variable_map); }
+        { interpret_line(line, &Vec::new(), &mut Vec::new(), &mut globals); }
     }
 }

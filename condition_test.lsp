@@ -6,6 +6,7 @@
 	(print y)
 	(set y (car y))
 ))
+
 (print y)
 (print (null? ()))
 (set y x)
@@ -14,4 +15,5 @@
 	(print y)
 	(set y (cdr y))
 ))
+
 (print y)

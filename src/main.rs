@@ -5,6 +5,7 @@ use std::process::exit;
 use substring::Substring;
 use crate::helper::*;
 
+// defines how lisp functions are handled in this interpreter
 pub struct Func
 {
     parameter_names: Vec<String>,
@@ -13,12 +14,15 @@ pub struct Func
 
 impl Func
 {
+    // creates a Func object based with the given parameter names and body
     pub fn new(parameter_names: Vec<String>, body: String) -> Self
     { Self {parameter_names, body} }
 
+    // creates a copy of the Func object
     pub fn clone(&self) -> Self
     { Self {parameter_names: self.parameter_names.clone(), body: self.body.clone()} }
 
+    // runs the function described in the body based on the given parameter values
     pub fn run(&self, parameters: &mut Vec<Variable>, globals: &mut HashMap<String, Variable>)
     {
         if parameters.len() != self.parameter_names.len()
@@ -31,17 +35,19 @@ impl Func
     }
 }
 
+// The basis for the interpreter's type system
 pub enum Variable
 {
     Number(f64),
     String(String),
     List(Vec<Variable>),
-    True,
-    Func(Func)
+    Func(Func),
+    True
 }
 
 impl Variable
 {
+    // makes a copy of the variable
     pub fn clone(&self) -> Self
     {
         return match self
@@ -60,6 +66,7 @@ impl Variable
         }
     }
 
+    // checks if the variables are equal
     pub fn eq(&self, other: &Self) -> bool
     {
         return match self
@@ -109,6 +116,8 @@ impl Variable
         }
     }
 
+    // creates a Variable object based on the given string
+    // string can be a variable name or a literal
     pub fn from_string(input: String, local_names: &Vec<String>, locals: &Vec<Variable>, globals: &HashMap<String, Variable>) -> Self
     {
         return if input.chars().nth(0).unwrap() == '\"'
@@ -147,6 +156,7 @@ impl Variable
         }
     }
 
+    // returns the contents of the Variable as a string
     pub fn to_string(&self) -> String
     {
         return match self
@@ -167,6 +177,8 @@ impl Variable
     }
 }
 
+// the main function
+// does the basic setup
 fn main()
 {
     let args: Vec<String> = std::env::args().collect();
@@ -184,7 +196,7 @@ fn main()
     for line in split
     {
         let substrings = string_sep(line.substring(1, line.len()-1).to_string());
-        if substrings[0] == "define"
+        if substrings[0] == "define"    // define is handled specially, not with the other functions
         {
             if substrings.len() != 4
             {

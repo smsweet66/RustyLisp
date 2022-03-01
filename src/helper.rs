@@ -4,7 +4,7 @@ use substring::Substring;
 use crate::Variable;
 
 // breaks up a string into multiple substrings by spaces
-// ignores spaces within quotes
+// ignores spaces within quotes, parentheses and braces
 pub(crate) fn string_sep(string: String) -> Vec<String>
 {
     let mut substrings: Vec<String> = Vec::new();
@@ -70,6 +70,7 @@ pub(crate) fn string_sep(string: String) -> Vec<String>
     return substrings;
 }
 
+// performs an operation based on the given string "op"
 fn operation(op: String, local_names: &Vec<String>, locals: &mut Vec<Variable>, globals: &mut HashMap<String, Variable>) -> String
 {
     let substrings = string_sep(op);
@@ -469,6 +470,9 @@ fn operation(op: String, local_names: &Vec<String>, locals: &mut Vec<Variable>, 
     }
 }
 
+// checks to see whether or not the line should be evaluated
+// if the line needs to be evaluated (string is surrounded by parentheses) the contents inside
+// the parentheses will be sent to the operation function
 pub fn interpret_line(line: String, local_names: &Vec<String>, locals: &mut Vec<Variable>, globals: &mut HashMap<String, Variable>) -> String
 {
     return if line.chars().nth(0).unwrap() == '('

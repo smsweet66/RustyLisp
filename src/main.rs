@@ -88,7 +88,7 @@ impl Variable
                         {
                             for i in 0..l1.len()
                             {
-                                if !l1.get(i).unwrap().eq(l2.get(i).unwrap())
+                                if !l1[i].eq(&l2[i])
                                 { return false }
                             }
 
@@ -132,7 +132,7 @@ impl Variable
                 Ok(v) => Variable::Number(v.clone()),
                 _ => {
                     if local_names.contains(&input)
-                    { locals.get(local_names.iter().position(|s| s == &input).unwrap()).unwrap().clone() }
+                    { locals[local_names.iter().position(|s| s == &input).unwrap()].clone() }
                     else
                     {
                         let container = globals.get(input.as_str());
@@ -146,7 +146,7 @@ impl Variable
             }
         }
     }
-    // returns the variable as a string
+
     pub fn to_string(&self) -> String
     {
         return match self
@@ -170,6 +170,12 @@ impl Variable
 fn main()
 {
     let args: Vec<String> = std::env::args().collect();
+    if args.len() != 2
+    {
+        println!("Incorrect number of arguments. \n\
+                  Correct usage:  {} *.lsp", args[0]);
+        exit(0);
+    }
     let input = std::fs::read_to_string(&args[1]).expect("Could not read file!")
         .replace("()", "[]").to_lowercase();
     let split = string_sep(input);
@@ -178,7 +184,7 @@ fn main()
     for line in split
     {
         let substrings = string_sep(line.substring(1, line.len()-1).to_string());
-        if substrings.get(0).unwrap() == "define"
+        if substrings[0] == "define"
         {
             if substrings.len() != 4
             {
@@ -187,10 +193,10 @@ fn main()
             }
             else
             {
-                let temp = substrings.get(2).unwrap();
+                let temp = &substrings[2];
                 let arguments = string_sep(temp.substring(1, temp.len()-1).to_string());
-                let function = Func::new(arguments, substrings.get(3).unwrap().clone());
-                globals.insert(substrings.get(1).unwrap().clone(), Variable::Func(function));
+                let function = Func::new(arguments, substrings[3].clone());
+                globals.insert(substrings[1].clone(), Variable::Func(function));
             }
         }
         else

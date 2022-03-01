@@ -1,0 +1,25 @@
+(set x 5.4)
+(set y 10)
+(set temp x)
+(while (> y 1)
+(begin
+	(set x (* x temp))
+	(set y (- y 1))
+	(print x)
+))
+
+(set x 5.4)
+(set y 10)
+(set temp x)
+(while (> y -1)
+(begin
+	(set x (/ x temp))
+	(set y (- y 1))
+	(print x)
+))
+
+(define func1 (func) (func 1 2))
+(define func2 (a b) (print (* a b)))
+(define func3 (a b) (print (+ a b)))
+(func1 func2)
+(func1 func3)

@@ -17,3 +17,5 @@
 ))
 
 (print y)
+(print (symbol? y))
+(print (symbol? z))
